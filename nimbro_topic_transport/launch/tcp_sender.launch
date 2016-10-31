@@ -1,6 +1,10 @@
 <launch>
 	<arg name="target" default="localhost" />
-	<arg name="allow_bidirectional" default="true" />
+
+    <arg name="allow_bidirectional" default="true" />
+
+	<arg name="support_latching" default="false" />
+	<arg name="latch_helper_server_port" default="17010" />
 
 	<!-- The UDP sender node -->
 	<node name="tcp_sender" pkg="nimbro_topic_transport" type="tcp_sender" output="screen">
@@ -17,4 +21,8 @@
 		<rosparam param="ignored_publishers" if="$(arg allow_bidirectional)">["/tcp_receiver_back"]</rosparam>
 		<rosparam param="ignored_publishers" unless="$(arg allow_bidirectional)">[]</rosparam>
 	</node>
+
+	<include file="$(find nimbro_topic_transport)/launch/tcp_sender_latch_helper.launch" if="$(arg support_latching)">
+		<arg name="server_port" value="$(arg latch_helper_server_port)" />
+	</include>
 </launch>

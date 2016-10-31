@@ -146,6 +146,9 @@ TCPSender::TCPSender()
 		boost::bind(&TCPSender::updateStats, this)
 	);
 	m_statsTimer.start();
+
+    m_latchedMessageRequestServer = m_nh.advertiseService(
+            "publish_latched_messages", &TCPSender::sendLatched, this);
 }
 
 TCPSender::~TCPSender()
@@ -402,16 +405,20 @@ void TCPSender::updateStats()
 	m_sentBytesInStatsInterval = 0;
 }
 
+bool TCPSender::sendLatched(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
+    this->sendLatched();
+    return true;
+}
+
 void TCPSender::sendLatched() {
+    std::map<std::string, std::pair<topic_tools::ShapeShifter::ConstPtr, int>>::iterator it =
+            this->m_latchedMessages.begin();
 
-	std::map<std::string, std::pair<topic_tools::ShapeShifter::ConstPtr, int> >::iterator it =
-			this->m_latchedMessages.begin();
-
-	// send all latched messages
-	while (it != this->m_latchedMessages.end()) {
-		this->send(it->first, it->second.second, it->second.first, false);
-		it++;
-	}
+    // send all latched messages
+    while (it != this->m_latchedMessages.end()) {
+        this->send(it->first, it->second.second, it->second.first);
+        it++;
+    }
 }
 
 }

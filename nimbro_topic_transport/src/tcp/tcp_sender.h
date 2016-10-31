@@ -18,6 +18,8 @@
 
 #include "ros/message_event.h"
 
+#include <std_srvs/Empty.h>
+
 #include <nimbro_topic_transport/SenderStats.h>
 
 namespace nimbro_topic_transport
@@ -36,6 +38,7 @@ public:
     void messageCallback(const std::string& topic, int flags,
                          const ros::MessageEvent<topic_tools::ShapeShifter const>& shifter);
     void sendLatched();
+    bool sendLatched(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 private:
 	void updateStats();
 
@@ -64,6 +67,7 @@ private:
 	ros::WallTimer m_statsTimer;
 	uint64_t m_sentBytesInStatsInterval;
 	std::map<std::string, uint64_t> m_topicSendBytesInStatsInteral;
+    ros::ServiceServer m_latchedMessageRequestServer;
 };
 
 }
