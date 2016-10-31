@@ -148,7 +148,7 @@ TCPSender::TCPSender()
 	m_statsTimer.start();
 
     m_latchedMessageRequestServer = m_nh.advertiseService(
-            "publish_latched_messages", &TCPSender::sendLatched, this);
+            "publish_latched_messages", &TCPSender::sendLatchedCallback, this);
 }
 
 TCPSender::~TCPSender()
@@ -405,7 +405,7 @@ void TCPSender::updateStats()
 	m_sentBytesInStatsInterval = 0;
 }
 
-bool TCPSender::sendLatched(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
+bool TCPSender::sendLatchedCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
     this->sendLatched();
     return true;
 }

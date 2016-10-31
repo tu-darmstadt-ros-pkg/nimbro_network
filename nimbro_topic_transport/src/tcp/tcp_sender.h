@@ -38,7 +38,7 @@ public:
     void messageCallback(const std::string& topic, int flags,
                          const ros::MessageEvent<topic_tools::ShapeShifter const>& shifter);
     void sendLatched();
-    bool sendLatched(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+    bool sendLatchedCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 private:
 	void updateStats();
 

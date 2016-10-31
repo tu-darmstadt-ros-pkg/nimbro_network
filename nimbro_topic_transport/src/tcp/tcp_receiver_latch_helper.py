@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-__author__ = "Martin Pecka <martin.pecka@cvut.cz>"
-
 import rospy
 from std_msgs.msg import String
 from std_srvs.srv import Empty, EmptyRequest
+
+__author__ = "Martin Pecka <martin.pecka@cvut.cz>"
 
 
 class LatchHelper(object):
