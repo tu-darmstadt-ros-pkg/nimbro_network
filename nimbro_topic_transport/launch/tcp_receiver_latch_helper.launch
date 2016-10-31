@@ -13,7 +13,7 @@
 
 <rosparam subst_value="true">
 services:
-  - name: "$(arg service_server_name)/publish_latched_topics"
+  - name: "$(arg service_server_name)/publish_latched_messages"
     type: "std_srvs/Empty"
 </rosparam>
 
