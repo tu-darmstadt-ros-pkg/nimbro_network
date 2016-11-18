@@ -33,7 +33,7 @@ public:
 
 	bool connect();
 
-	void send(const std::string& topic, int flags, topic_tools::ShapeShifter::ConstPtr shifter,
+	void send(const std::string& topic, int flags, const topic_tools::ShapeShifter::ConstPtr& shifter,
               const bool reconnect = true);
     void messageCallback(const std::string& topic, int flags,
                          const ros::MessageEvent<topic_tools::ShapeShifter const>& shifter);
