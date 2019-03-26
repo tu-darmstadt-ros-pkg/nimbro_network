@@ -48,7 +48,7 @@ static std::string msgQuery(const std::string& cmd, const std::string& type, boo
 		close(fds[0]);
 		dup2(fds[1], STDOUT_FILENO);
 
-		if(execlp("rosmsg", "rosmsg", cmd.c_str(), type.c_str(), 0) != 0)
+		if(execlp("rosmsg", "rosmsg", cmd.c_str(), type.c_str(), nullptr) != 0)
 		{
 			throw std::runtime_error("Could not execlp() rosmsg");
 		}
