@@ -1,36 +1,45 @@
 <package format="2">
-	<name>nimbro_topic_transport</name>
-	<version>1.0.0</version>
-	<description>Contains nodes for TCP/UDP communication between ROS masters</description>
+    <name>nimbro_topic_transport</name>
+    <version>1.1.0</version>
+    <description>Contains nodes for TCP/UDP communication between ROS masters</description>
 
-	<maintainer email="max.schwarz@uni-bonn.de">Max Schwarz</maintainer>
+    <maintainer email="max.schwarz@uni-bonn.de">Max Schwarz</maintainer>
 
-	<license>GPLv2</license>
+    <license>GPLv2</license>
 
-	<buildtool_depend>catkin</buildtool_depend>
-	<depend>roscpp</depend>
-	<depend>rospy</depend>
-	<depend>topic_tools</depend>
+    <buildtool_depend>catkin</buildtool_depend>
 
-	<build_depend>message_generation</build_depend>
+    <depend>bzip2</depend>
+    <depend>libqcustomplot-dev</depend>
+    <depend>libqt5-printsupport</depend>
+    <depend>libqt5-widgets</depend>
+    <depend>roscpp</depend>
+    <depend>rqt_gui_cpp</depend>
+    <depend>std_msgs</depend>
+    <depend>std_srvs</depend>
+    <depend>topic_tools</depend>
 
-	<depend>std_msgs</depend>
-	<depend>std_srvs</depend>
+    <build_depend>qtbase5-dev</build_depend>
 
-	<!-- This is not a hard dependency, the package compiles without plot_msgs. -->
-	<depend>plot_msgs</depend>
+    <build_depend>message_generation</build_depend>
+    <build_export_depend>message_runtime</build_export_depend>
+    <exec_depend>message_runtime</exec_depend>
 
-	<!-- This is not a hard dependency, the package compiles without config_server. -->
-	<depend>config_server</depend>
+    <exec_depend>rospy</exec_depend>
+    <exec_depend>rqt_gui</exec_depend>
 
-	<!-- This is not a hard dependency, the package compiles without catch_ros -->
-	<depend>catch_ros</depend>
+    <!-- This is not a hard dependency, the package compiles without plot_msgs. -->
+    <depend>plot_msgs</depend>
 
-	<depend>rqt_gui</depend>
+    <!-- This is not a hard dependency, the package compiles without config_server. -->
+    <depend>config_server</depend>
 
-	<export>
-		<rqt_gui plugin="${prefix}/rqt_plugin.xml" />
-		<rqt_gui plugin="${prefix}/bandwidth_plugin.xml" />
-	</export>
+    <test_depend>catch_ros</test_depend>
+    <test_depend>rostest</test_depend>
+
+    <export>
+        <rqt_gui plugin="${prefix}/rqt_plugin.xml" />
+        <rqt_gui plugin="${prefix}/bandwidth_plugin.xml" />
+    </export>
 
 </package>

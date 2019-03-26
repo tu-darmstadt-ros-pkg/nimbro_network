@@ -13,4 +13,7 @@ Publications:
 
 Parameters:
  - `rate` (float): Snapshot rate (default: 4.0)
+ - `frame_ids` (list of strings): Only these frame IDs will be republished. 
+                                  Empty list means all frames are republished.
+                                  (default: [])
 

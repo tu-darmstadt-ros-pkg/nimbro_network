@@ -2,37 +2,40 @@ cmake_minimum_required(VERSION 2.8)
 
 project(nimbro_log_transport)
 
-find_package(catkin REQUIRED COMPONENTS genmsg rosgraph_msgs roscpp)
+set(CMAKE_CXX_STANDARD 14)
+
+find_package(catkin REQUIRED COMPONENTS message_generation roscpp rosgraph_msgs std_msgs)
+find_package(Boost REQUIRED COMPONENTS)
 
 add_message_files(FILES
-	LogBlock.msg
-	LogMsg.msg
-)
+  LogBlock.msg
+  LogMsg.msg
+  )
 
 generate_messages(DEPENDENCIES
-	std_msgs
-	rosgraph_msgs
-)
+  rosgraph_msgs
+  std_msgs
+  )
 
 catkin_package(
+  CATKIN_DEPENDS message_runtime roscpp rosgraph_msgs std_msgs
+  DEPENDS Boost
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11")
+add_compile_options("-Wall")
 
 include_directories(${catkin_INCLUDE_DIRS})
 
-add_executable(log_sender
-	src/log_sender.cpp
-)
-target_link_libraries(log_sender
-	${catkin_LIBRARIES}
-)
-add_dependencies(log_sender ${nimbro_log_transport_EXPORTED_TARGETS})
+add_executable(log_sender src/log_sender.cpp)
+target_link_libraries(log_sender ${catkin_LIBRARIES})
+add_dependencies(log_sender ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
-add_executable(log_receiver
-	src/log_receiver.cpp
+add_executable(log_receiver src/log_receiver.cpp)
+target_link_libraries(log_receiver ${catkin_LIBRARIES})
+add_dependencies(log_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
+install(TARGETS log_receiver log_sender
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-target_link_libraries(log_receiver
-	${catkin_LIBRARIES}
-)
-add_dependencies(log_receiver ${nimbro_log_transport_EXPORTED_TARGETS})

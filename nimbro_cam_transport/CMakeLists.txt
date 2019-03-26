@@ -1,53 +1,37 @@
-
 cmake_minimum_required(VERSION 2.8)
+
 project(nimbro_cam_transport)
 
 find_package(catkin REQUIRED COMPONENTS
-	image_transport
-	roscpp
-	cv_bridge
-)
+  cv_bridge
+  image_transport
+  roscpp
+  )
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS cv_bridge image_transport roscpp
+)
 
 include_directories(${catkin_INCLUDE_DIRS})
 
-find_library(x264_LIBRARY x264)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(X264 x264 REQUIRED)
+pkg_check_modules(LIBAVUTIL libavutil REQUIRED)
+pkg_check_modules(LIBAVCODEC libavcodec REQUIRED)
+pkg_check_modules(LIBSWSCALE libswscale REQUIRED)
 
-if(NOT x264_LIBRARY)
-	message(WARNING "x264 library not found, not building senders...")
-endif()
+link_directories(${X264_LIBRARY_DIRS} ${LIBAVUTIL_LIBRARY_DIRS} ${LIBAVCODEC_LIBRARY_DIRS} ${LIBSWSCALE_LIBRARY_DIRS})
 
-find_library(LIBAVUTIL_LIBRARY avutil HINTS /opt/ffmpeg/lib)
-find_library(LIBAVCODEC_LIBRARY avcodec HINTS /opt/ffmpeg/lib)
-find_library(LIBSWSCALE_LIBRARY swscale HINTS /opt/ffmpeg/lib)
+add_executable(cam_sender src/rgb_to_yuv420.cpp src/sender.cpp)
+target_include_directories(cam_sender PUBLIC ${X264_INCLUDE_DIRS})
+target_link_libraries(cam_sender ${catkin_LIBRARIES} ${X264_LIBRARIES})
 
-set(FFMPEG_INCLUDE_PATH "/opt/ffmpeg/include" CACHE PATH "path to libavcodec/avcodec.h")
-include_directories(${FFMPEG_INCLUDE_PATH})
+add_executable(cam_receiver src/receiver.cpp)
+target_include_directories(cam_receiver PUBLIC ${LIBAVUTIL_INCLUDE_DIRS} ${LIBAVCODEC_INCLUDE_DIRS} ${LIBSWSCALE_INCLUDE_DIRS})
+target_link_libraries(cam_receiver ${catkin_LIBRARIES} ${LIBAVUTIL_LIBRARIES} ${LIBAVCODEC_LIBRARIES} ${LIBSWSCALE_LIBRARIES})
 
-if(NOT LIBAVCODEC_LIBRARY OR NOT FFMPEG_INCLUDE_PATH)
-	message(WARNING "Could not find ffmpeg libraries, not building receivers...")
-endif()
-
-if(x264_LIBRARY)
-	add_executable(cam_sender
-		src/sender.cpp
-		src/rgb_to_yuv420.cpp
-	)
-	target_link_libraries(cam_sender
-		${catkin_LIBRARIES}
-		${x264_LIBRARY}
-	)
-endif()
-
-if(LIBAVCODEC_LIBRARY AND EXISTS ${FFMPEG_INCLUDE_PATH})
-	add_executable(cam_receiver
-		src/receiver.cpp
-	)
-	target_link_libraries(cam_receiver
-		${catkin_LIBRARIES}
-		${LIBAVUTIL_LIBRARY}
-		${LIBAVCODEC_LIBRARY}
-		${LIBSWSCALE_LIBRARY}
-	)
-endif()
+install(TARGETS cam_receiver cam_sender
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

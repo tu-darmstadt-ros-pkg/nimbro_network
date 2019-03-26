@@ -1,25 +1,34 @@
 <package format="2">
-	<name>nimbro_service_transport</name>
-	<version>1.0.0</version>
-	<description>Calls services on a different master with minimal latency</description>
+    <name>nimbro_service_transport</name>
+    <version>1.1.0</version>
+    <description>Calls services on a different master with minimal latency</description>
 
-	<maintainer email="max.schwarz@uni-bonn.de">Max Schwarz</maintainer>
+    <maintainer email="max.schwarz@uni-bonn.de">Max Schwarz</maintainer>
 
-	<license>GPLv2</license>
+    <license>GPLv2</license>
 
-	<buildtool_depend>catkin</buildtool_depend>
-	<depend>roscpp</depend>
-	<depend>topic_tools</depend>
+    <buildtool_depend>catkin</buildtool_depend>
 
-	<build_depend>message_generation</build_depend>
+    <depend>libqt5-widgets</depend>
+    <depend>roscpp</depend>
+    <depend>roslib</depend>
+    <depend>rqt_gui_cpp</depend>
+    <depend>std_msgs</depend>
+    <depend>topic_tools</depend>
 
-	<depend>rqt_gui</depend>
+    <build_depend>qtbase5-dev</build_depend>
 
-	<!-- soft dependency for unit tests -->
-	<depend>catch_ros</depend>
+    <build_depend>message_generation</build_depend>
+    <build_export_depend>message_runtime</build_export_depend>
+    <exec_depend>message_runtime</exec_depend>
 
-	<export>
-		<rqt_gui plugin="${prefix}/plugin.xml" />
-	</export>
+    <exec_depend>rqt_gui</exec_depend>
+
+    <test_depend>rostest</test_depend>
+    <test_depend>catch_ros</test_depend>
+
+    <export>
+        <rqt_gui plugin="${prefix}/plugin.xml" />
+    </export>
 
 </package>
