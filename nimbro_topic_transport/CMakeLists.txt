@@ -79,42 +79,40 @@ include_directories(${ZSTD_INCLUDE_DIRS})
 
 add_compile_options("-Wall")
 
+add_library(topic_info src/topic_info.cpp)
+target_link_libraries(topic_info ${catkin_LIBRARIES})
+
 add_executable(udp_sender
-  src/topic_info.cpp
   src/udp/topic_sender.cpp
   src/udp/udp_sender.cpp
 )
 add_dependencies(udp_sender openfec_lib ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(udp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
+target_link_libraries(udp_sender topic_info ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
 
 add_executable(udp_receiver
-  src/topic_info.cpp
   src/udp/topic_receiver.cpp
   src/udp/udp_receiver.cpp
 )
 add_dependencies(udp_receiver openfec_lib ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(udp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES})
+target_link_libraries(udp_receiver topic_info ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES})
 
 add_executable(tcp_sender
   src/tcp/tcp_sender.cpp
-  src/topic_info.cpp
 )
 add_dependencies(tcp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(tcp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
+target_link_libraries(tcp_sender topic_info ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
 
 add_executable(tcp_receiver
   src/tcp/tcp_receiver.cpp
-  src/topic_info.cpp
 )
 add_dependencies(tcp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(tcp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES})
+target_link_libraries(tcp_receiver topic_info ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES})
 
 # Tools
 add_executable(action_proxy
   src/action_proxy.cpp
-  src/topic_info.cpp
   )
-target_link_libraries(action_proxy ${catkin_LIBRARIES})
+target_link_libraries(action_proxy topic_info ${catkin_LIBRARIES})
 
 # GUI
 find_package(Qt5 REQUIRED COMPONENTS PrintSupport Widgets)
@@ -180,7 +178,7 @@ install(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(TARGETS action_proxy tcp_receiver tcp_sender udp_receiver udp_sender
+install(TARGETS action_proxy tcp_receiver tcp_sender topic_info udp_receiver udp_sender
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
