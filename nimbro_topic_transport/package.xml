@@ -13,6 +13,8 @@
     <depend>libqcustomplot-dev</depend>
     <depend>libqt5-printsupport</depend>
     <depend>libqt5-widgets</depend>
+    <depend>libzstd-dev</depend>
+    <depend>pkg-config</depend>
     <depend>roscpp</depend>
     <depend>rqt_gui_cpp</depend>
     <depend>std_msgs</depend>

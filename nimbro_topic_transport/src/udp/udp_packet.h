@@ -24,7 +24,8 @@ enum PacketType
 enum UDPFlag
 {
 	UDP_FLAG_COMPRESSED = (1 << 0),
-	UDP_FLAG_RELAY_MODE = (1 << 1)
+	UDP_FLAG_RELAY_MODE = (1 << 1),
+	UDP_FLAG_ZSTD       = (1 << 2),
 };
 
 struct UDPGenericPacket
@@ -77,6 +78,7 @@ struct FECHeader
 	LEValue<4> topic_md5[4];
 	LEValue<2> flags;
 	LEValue<2> topic_msg_counter;
+	LEValue<2> padding;
 
 	uint8_t data[];
 } __attribute__((packed));

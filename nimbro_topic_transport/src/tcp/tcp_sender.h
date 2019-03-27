@@ -28,15 +28,28 @@ namespace nimbro_topic_transport
 class TCPSender
 {
 public:
+	enum CompressionType
+	{
+		COMPRESSION_NONE,
+		COMPRESSION_BZ2,
+		COMPRESSION_ZSTD,
+	};
+
+	struct MessageOptions
+    {
+	  int flags;
+	  CompressionType compression;
+	  int compressionLevel;
+    };
+
 	TCPSender();
 	~TCPSender();
 
 	bool connect();
 
-	void send(const std::string& topic, int flags, const topic_tools::ShapeShifter::ConstPtr& shifter,
-              const bool reconnect = true);
-    void messageCallback(const std::string& topic, int flags,
-                         const ros::MessageEvent<topic_tools::ShapeShifter const>& shifter);
+    void send(const std::string& topic, MessageOptions& options, const topic_tools::ShapeShifter::ConstPtr& shifter, const bool reconnect = true);
+    void messageCallback(const std::string& topic, MessageOptions& options,
+        const ros::MessageEvent<topic_tools::ShapeShifter const>& shifter);
     void sendLatched();
     bool sendLatchedCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 private:
@@ -55,7 +68,7 @@ private:
 	std::vector<uint8_t> m_compressionBuf;
     std::vector<std::string> m_ignoredPubs;
 
-	std::map<std::string, std::pair<topic_tools::ShapeShifter::ConstPtr, int> > m_latchedMessages;
+	std::map<std::string, std::pair<topic_tools::ShapeShifter::ConstPtr, MessageOptions> > m_latchedMessages;
 
 #if WITH_CONFIG_SERVER
 	std::map<std::string, boost::shared_ptr<config_server::Parameter<bool>>> m_enableTopic;

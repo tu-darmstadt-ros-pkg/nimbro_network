@@ -5,32 +5,71 @@
 
 #include <bzlib.h>
 
+#if WITH_ZSTD
+#include <zstd.h>
+#endif
+
 namespace nimbro_topic_transport
 {
 
 bool Message::decompress(Message* dest)
 {
-	unsigned int destLen = 1024;
-	dest->payload.resize(destLen);
+	unsigned long long destLen = 1024;
 
-	while(1)
+	ROS_DEBUG("decompressing message with flags %d", (int)header.flags);
+	if(header.flags & UDP_FLAG_COMPRESSED)
 	{
-		int ret = BZ2_bzBuffToBuffDecompress((char*)dest->payload.data(), &destLen, (char*)payload.data(), payload.size(), 0, 0);
+		dest->payload.resize(destLen);
 
-		if(ret == BZ_OUTBUFF_FULL)
+		while(1)
 		{
-			destLen *= 2;
-			dest->payload.resize(destLen);
-			continue;
+			unsigned int decompressedLen = destLen;
+
+			int ret = BZ2_bzBuffToBuffDecompress((char*)dest->payload.data(), &decompressedLen, (char*)payload.data(), payload.size(), 0, 0);
+			destLen = decompressedLen;
+
+			if(ret == BZ_OUTBUFF_FULL)
+			{
+				destLen *= 2;
+				dest->payload.resize(destLen);
+				continue;
+			}
+
+			if(ret != BZ_OK)
+			{
+				ROS_ERROR("Could not decompress message");
+				return false;
+			}
+
+			break;
+		}
+	}
+	else if(header.flags & UDP_FLAG_ZSTD)
+	{
+#if WITH_ZSTD
+		destLen = ZSTD_getDecompressedSize(payload.data(), payload.size());
+		if(destLen == 0 || destLen >= (1 << 28)) // 256 MiB
+		{
+			ROS_WARN_THROTTLE(1.0, "Could not infer decompressed size. Maybe your message is larger than 256MiB?");
+			destLen = 5ULL * 1024ULL * 1024ULL; // 5MiB
 		}
 
-		if(ret != BZ_OK)
+		dest->payload.resize(destLen);
+
+
+		ROS_DEBUG("Decompressing with ZSTD from %lu bytes", payload.size());
+		size_t size = ZSTD_decompress(dest->payload.data(), destLen, payload.data(), payload.size());
+		if(ZSTD_isError(size))
 		{
-			ROS_ERROR("Could not decompress message");
+			ROS_ERROR("Could not decompress message using ZSTD: %s", ZSTD_getErrorName(size));
 			return false;
 		}
+		ROS_DEBUG("ZSTD: decompressed %lu to %lu", payload.size(), size);
 
-		break;
+		destLen = size;
+#else
+		ROS_ERROR_THROTTLE(1.0, "Received ZSTD compressed message, and I don't have ZSTD support compiled in. Dropping.");
+#endif
 	}
 
 	dest->payload.resize(destLen);
@@ -57,6 +96,7 @@ TopicReceiver::~TopicReceiver()
 
 void TopicReceiver::takeForDecompression(const boost::shared_ptr<Message>& msg)
 {
+	ROS_DEBUG("takeForDecompression: %d", (int)msg->header.flags);
 	if(!m_decompressionThreadRunning)
 	{
 		m_decompressionThreadShouldExit = false;

@@ -48,23 +48,34 @@ else()
   message(STATUS "config_server NOT found, not enabling its support in ${PROJECT_NAME}")
 endif()
 
-# If OpenFEC is available, we can enable FEC for the UDP sender
-set(DEFAULT_OPENFEC_PATH /opt/openfec_v1.4.2)
-set(OPENFEC_PATH "" CACHE PATH "Path to OpenFEC (optional)")
-if(NOT OPENFEC_PATH AND IS_DIRECTORY "${DEFAULT_OPENFEC_PATH}")
-  set(OPENFEC_PATH ${DEFAULT_OPENFEC_PATH})
-endif()
-if(OPENFEC_PATH)
-  include_directories(${OPENFEC_PATH}/src/lib_common)
-  set(OPENFEC_LIBRARY ${OPENFEC_PATH}/bin/Release/libopenfec.so)
-  add_definitions(-DWITH_OPENFEC=1)
-  message(STATUS "Found and using OpenFEC at: ${OPENFEC_PATH}")
-else()
-  set(OPENFEC_LIBRARY "")
-  message(STATUS "OpenFEC not found.")
-endif()
+include(ExternalProject)
+ExternalProject_Add(
+  openfec_lib
+  URL http://openfec.org/files/openfec_v1_4_2.tgz
+  URL_MD5 c4f8b0aa3e9352f2e713e3db2885ea1c
+  BUILD_COMMAND make
+  INSTALL_COMMAND cp "<SOURCE_DIR>/bin/Release/libopenfec.so" "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1.4.2" && ln -sf "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1.4.2" "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1" && ln -sf "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1" "${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so"
+  PATCH_COMMAND sed -i.bak "s/FLAGS \"-O4\"/FLAGS \"-O4 -w\"/" CMakeLists.txt
+)
+ExternalProject_Get_Property(openfec_lib SOURCE_DIR)
+set(OPENFEC_PATH "${SOURCE_DIR}")
+add_definitions(-DWITH_OPENFEC=1)
+include_directories(${OPENFEC_PATH}/src/lib_common)
+link_directories(${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION})
+set(OPENFEC_LIBRARY openfec)
+install(FILES
+  ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1.4.2
+  ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so.1
+  ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_LIB_DESTINATION}/libopenfec.so
+  DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+message(STATUS "Found and using OpenFEC at: ${OPENFEC_PATH}")
 
 find_library(BZ2_LIBRARY bz2 REQUIRED)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD libzstd REQUIRED)
+add_definitions(-DWITH_ZSTD=1)
+include_directories(${ZSTD_INCLUDE_DIRS})
 
 add_compile_options("-Wall")
 
@@ -73,30 +84,30 @@ add_executable(udp_sender
   src/udp/topic_sender.cpp
   src/udp/udp_sender.cpp
 )
-add_dependencies(udp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(udp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${config_server_LIBRARIES})
+add_dependencies(udp_sender openfec_lib ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(udp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
 
 add_executable(udp_receiver
   src/topic_info.cpp
   src/udp/topic_receiver.cpp
   src/udp/udp_receiver.cpp
 )
-add_dependencies(udp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(udp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY})
+add_dependencies(udp_receiver openfec_lib ${${PROJECT_NAME}_EXPORTED_TARGETS})
+target_link_libraries(udp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${OPENFEC_LIBRARY} ${ZSTD_LIBRARIES})
 
 add_executable(tcp_sender
   src/tcp/tcp_sender.cpp
   src/topic_info.cpp
 )
 add_dependencies(tcp_sender ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(tcp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${config_server_LIBRARIES})
+target_link_libraries(tcp_sender ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES} ${config_server_LIBRARIES})
 
 add_executable(tcp_receiver
   src/tcp/tcp_receiver.cpp
   src/topic_info.cpp
 )
 add_dependencies(tcp_receiver ${${PROJECT_NAME}_EXPORTED_TARGETS})
-target_link_libraries(tcp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY})
+target_link_libraries(tcp_receiver ${catkin_LIBRARIES} ${BZ2_LIBRARY} ${ZSTD_LIBRARIES})
 
 # Tools
 add_executable(action_proxy
@@ -147,11 +158,11 @@ if(CATKIN_ENABLE_TESTING)
   )
   target_link_libraries(test_comm ${catkin_LIBRARIES} ${rostest_LIBRARIES})
 
-  add_rostest(test/topic_transport.test ARGS protocol:=udp)
-  add_rostest(test/topic_transport.test ARGS protocol:=tcp)
+  add_rostest(test/topic_transport.test ARGS port:=5778 protocol:=udp)
+  add_rostest(test/topic_transport.test ARGS port:=5779 protocol:=tcp)
 
   if(OPENFEC_PATH)
-    add_rostest(test/topic_transport.test ARGS protocol:=udp fec:=true)
+    add_rostest(test/topic_transport.test ARGS port:=5780 protocol:=udp fec:=true)
   endif()
 
   catch_add_rostest_node(test_bidirectional

@@ -33,6 +33,7 @@ UDPSender::UDPSender()
 {
 	ros::NodeHandle nh("~");
 
+	// Get ROS parameters
 	nh.param("relay_mode", m_relayMode, false);
 
 	std::string dest_host;
@@ -43,8 +44,9 @@ UDPSender::UDPSender()
 
 	std::string dest_port_str = boost::lexical_cast<std::string>(dest_port);
 
+	// Resolve the destination address
+	// note: getaddrinfo() also accepts direct IP addresses
 	addrinfo *info = 0;
-
 	if(getaddrinfo(dest_host.c_str(), dest_port_str.c_str(), 0, &info) != 0 || !info)
 	{
 		ROS_FATAL("Could not lookup destination address\n '%s': %s",
@@ -71,6 +73,8 @@ UDPSender::UDPSender()
 	m_addrLen = info->ai_addrlen;
 
 	int source_port = dest_port;
+
+	// If we have a specified source port, bind to it.
 	if(nh.hasParam("source_port"))
 	{
 		if(!nh.getParam("source_port", source_port))
@@ -106,8 +110,10 @@ UDPSender::UDPSender()
 
 	freeaddrinfo(info);
 
+	// Do we enable FEC?
 	nh.param("fec", m_fec, 0.0);
 
+	// Setup the individual topic senders.
 	XmlRpc::XmlRpcValue list;
 	nh.getParam("topics", list);
 
@@ -126,8 +132,34 @@ UDPSender::UDPSender()
 		if(list[i].hasMember("rate"))
 			rate = list[i]["rate"];
 
-		if(list[i].hasMember("compress") && ((bool)list[i]["compress"]))
-			flags |= UDP_FLAG_COMPRESSED;
+		TopicSender::CompressionType compression = TopicSender::COMPRESSION_NONE;
+		int compressionLevel = -1;
+
+		if(list[i].hasMember("compress"))
+		{
+			auto value = list[i]["compress"];
+
+			if(value.getType() == XmlRpc::XmlRpcValue::TypeBoolean && ((bool)value))
+				compression = TopicSender::COMPRESSION_BZ2;
+			else if(value.getType() == XmlRpc::XmlRpcValue::TypeInt)
+			{
+				compression = TopicSender::COMPRESSION_BZ2;
+				compressionLevel = value;
+			}
+		}
+
+		if(list[i].hasMember("zstd"))
+		{
+			auto value = list[i]["zstd"];
+
+			if(value.getType() == XmlRpc::XmlRpcValue::TypeBoolean && ((bool)value))
+				compression = TopicSender::COMPRESSION_ZSTD;
+			else if(value.getType() == XmlRpc::XmlRpcValue::TypeInt)
+			{
+				compression = TopicSender::COMPRESSION_ZSTD;
+				compressionLevel = value;
+			}
+		}
 
 		if(list[i].hasMember("resend") && ((bool)list[i]["resend"]))
 			resend = true;
@@ -146,6 +178,10 @@ UDPSender::UDPSender()
 
 		TopicSender* sender = new TopicSender(this, &nh, list[i]["name"], rate, resend, flags, enabled, type);
 
+		sender->setCompression(compression, compressionLevel);
+
+		// In relay mode, we trigger the sending once the queue is empty.
+		// see relay() for details.
 		if(m_relayMode)
 			sender->setDirectTransmissionEnabled(false);
 
@@ -154,6 +190,7 @@ UDPSender::UDPSender()
 
 	nh.param("duplicate_first_packet", m_duplicateFirstPacket, false);
 
+	// If enabled, start relay control thread.
 	if(m_relayMode)
 	{
 		double target_bitrate;
@@ -178,6 +215,7 @@ UDPSender::UDPSender()
 		);
 	}
 
+	// For statistics messages, we need our own hostname.
 	char hostnameBuf[256];
 	gethostname(hostnameBuf, sizeof(hostnameBuf));
 	hostnameBuf[sizeof(hostnameBuf)-1] = 0;
@@ -194,6 +232,7 @@ UDPSender::UDPSender()
 
 	m_pub_stats = nh.advertise<nimbro_topic_transport::SenderStats>("/network/sender_stats", 1);
 
+	// Start periodic statistics timer.
 	m_statsInterval = ros::WallDuration(2.0);
 	m_statsTimer = nh.createWallTimer(m_statsInterval,
 		boost::bind(&UDPSender::updateStats, this)

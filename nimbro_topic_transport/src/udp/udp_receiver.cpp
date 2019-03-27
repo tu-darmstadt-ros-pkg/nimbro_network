@@ -178,7 +178,7 @@ void UDPReceiver::handleFinishedMessage(Message* msg, HeaderType* header)
 		return;
 	}
 
-	bool compressed = header->flags & UDP_FLAG_COMPRESSED;
+	bool compressed = (header->flags & UDP_FLAG_COMPRESSED) || (header->flags & UDP_FLAG_ZSTD);
 
 	// Compare md5
 	if(topic->last_message_counter == -1 || memcmp(topic->md5, header->topic_md5, sizeof(topic->md5)) != 0 || (m_keepCompressed && topic->compressed != compressed))
@@ -237,6 +237,7 @@ void UDPReceiver::handleFinishedMessage(Message* msg, HeaderType* header)
 
 	if(compressed && m_keepCompressed)
 	{
+		ROS_DEBUG("publishing compressed message as-is");
 		CompressedMsgPtr compressed(new CompressedMsg);
 		compressed->type = header->topic_type;
 		memcpy(compressed->md5.data(), topic->md5, sizeof(topic->md5));
@@ -245,10 +246,16 @@ void UDPReceiver::handleFinishedMessage(Message* msg, HeaderType* header)
 
 		topic->publishCompressed(compressed);
 	}
-	else if(header->flags & UDP_FLAG_COMPRESSED)
-		topic->takeForDecompression(boost::make_shared<Message>(*msg));
+	else if(compressed)
+	{
+		ROS_DEBUG("decompressing, flags: %d, msg->header.flags: %d", (int)header->flags, (int)msg->header.flags);
+		auto msgPtr = boost::make_shared<Message>(*msg);
+		ROS_DEBUG("msgPtr->header.flags: %d", (int)msgPtr->header.flags);
+		topic->takeForDecompression(msgPtr);
+	}
 	else
 	{
+		ROS_DEBUG("publishing non-compressed message directly");
 		boost::shared_ptr<topic_tools::ShapeShifter> shapeShifter(new topic_tools::ShapeShifter);
 		shapeShifter->morph(topic->md5_str, header->topic_type, topic->msg_def, "");
 
@@ -319,7 +326,13 @@ void UDPReceiver::run()
 			}
 			else
 			{
-				ROS_ERROR("Could not resolve remote address to name");
+				char host[NI_MAXHOST];
+				if(getnameinfo((sockaddr*)&addr, addrlen, host, sizeof(host), NULL, 0, NI_NUMERICHOST) == 0)
+				{
+					ROS_ERROR("Could not resolve remote address '%s' to name", host);
+				}
+				else
+					ROS_ERROR("Could not resolve remote address to name");
 				m_stats.remote = "unknown";
 				m_stats.remote_port = -1;
 			}
@@ -339,7 +352,7 @@ void UDPReceiver::run()
 			m_remoteAddrLen = addrlen;
 		}
 
-		ROS_DEBUG("packet of size %lu", size);
+// 		ROS_DEBUG("packet of size %lu", size);
 		m_receivedBytesInStatsInterval += size;
 
 		uint16_t msg_id;
@@ -503,6 +516,7 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 
 			if(packet->header.source_symbols() >= MIN_PACKETS_LDPC)
 			{
+				ROS_DEBUG("LDPC");
 				if(of_create_codec_instance(&ses, OF_CODEC_LDPC_STAIRCASE_STABLE, OF_DECODER, 1) != OF_STATUS_OK)
 				{
 					ROS_ERROR("Could not create LDPC decoder");
@@ -522,6 +536,7 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 			}
 			else
 			{
+				ROS_DEBUG("REED");
 				if(of_create_codec_instance(&ses, OF_CODEC_REED_SOLOMON_GF_2_M_STABLE, OF_DECODER, 1) != OF_STATUS_OK)
 				{
 					ROS_ERROR("Could not create REED_SOLOMON decoder");
@@ -533,6 +548,8 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 				rs_params->nb_repair_symbols = packet->header.repair_symbols();
 				rs_params->encoding_symbol_length = packet->header.symbol_length();
 				rs_params->m = 8;
+
+				ROS_DEBUG("REED params: %d, %d, %d", rs_params->nb_source_symbols, rs_params->nb_repair_symbols, rs_params->encoding_symbol_length);
 
 				params = (of_parameters_t*)rs_params;
 			}
@@ -568,7 +585,7 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 		// FEC iterative decoding
 		if(of_decode_with_new_symbol(msg->decoder.get(), symbol_begin, packet->header.symbol_id()) != OF_STATUS_OK)
 		{
-			ROS_ERROR("Could not decode symbol");
+			ROS_ERROR_THROTTLE(5.0, "Could not decode symbol");
 			return;
 		}
 
@@ -638,7 +655,17 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 				writePtr += msg->params->encoding_symbol_length;
 			}
 
+			ROS_DEBUG("Received a message with padding %d", (int)msgHeader.padding);
+			payloadLength -= msgHeader.padding;
+
+			msg->payload.resize(payloadLength);
 			msg->size = payloadLength;
+
+			// Fill in the header fields for the non-FEC message as good as we can
+			strncpy(msg->header.topic_name, msgHeader.topic_name, sizeof(msg->header.topic_name));
+			strncpy(msg->header.topic_type, msgHeader.topic_type, sizeof(msg->header.topic_type));
+			msg->header.flags = msgHeader.flags;
+			msg->header.topic_msg_counter = msgHeader.topic_msg_counter;
 
 			handleFinishedMessage(msg, &msgHeader);
 
@@ -657,10 +684,9 @@ void UDPReceiver::handleMessagePacket(MessageBuffer::iterator it, std::vector<ui
 			msg->header = first->header;
 
 			// We can calculate an approximate size now
-			uint32_t required_size = (msg->header.remaining_packets()+1) * PACKET_SIZE;
 			uint32_t my_size = size - sizeof(UDPFirstPacket);
-			if(msg->payload.size() < required_size)
-				msg->payload.resize(required_size);
+			if(msg->payload.size() < my_size)
+				msg->payload.resize(my_size);
 			memcpy(msg->payload.data(), first->data, my_size);
 
 			if(msg->size < my_size)

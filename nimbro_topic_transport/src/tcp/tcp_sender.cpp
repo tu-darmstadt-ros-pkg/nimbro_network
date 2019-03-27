@@ -6,6 +6,10 @@
 
 #include <bzlib.h>
 
+#if WITH_ZSTD
+#include <zstd.h>
+#endif
+
 #include <netinet/tcp.h>
 #include <boost/algorithm/string/replace.hpp>
 
@@ -74,19 +78,48 @@ TCPSender::TCPSender()
 		ROS_ASSERT(entry.hasMember("name"));
 
 		std::string topic = entry["name"];
-		int flags = 0;
+		MessageOptions options;
+		options.flags = 0;
 
-		if(entry.hasMember("compress") && ((bool)entry["compress"]) == true)
-			flags |= TCP_FLAG_COMPRESSED;
+        options.compression = COMPRESSION_NONE;
+        options.compressionLevel = -1;
+
+		if(entry.hasMember("compress"))
+		{
+			auto value = entry["compress"];
+			if(value.getType() == XmlRpc::XmlRpcValue::TypeBoolean && ((bool)value))
+			{
+                options.compression = COMPRESSION_BZ2;
+			}
+			else if(value.getType() == XmlRpc::XmlRpcValue::TypeInt)
+			{
+                options.compression = COMPRESSION_BZ2;
+                options.compressionLevel = value;
+			}
+		}
+
+		if(entry.hasMember("zstd"))
+		{
+			auto value = entry["zstd"];
+			if(value.getType() == XmlRpc::XmlRpcValue::TypeBoolean && ((bool)value))
+			{
+                options.compression = COMPRESSION_ZSTD;
+			}
+			else if(value.getType() == XmlRpc::XmlRpcValue::TypeInt)
+			{
+                options.compression = COMPRESSION_ZSTD;
+                options.compressionLevel = value;
+			}
+		}
 
 		if(entry.hasMember("latch") && ((bool)entry["latch"]) == true)
-			flags |= TCP_FLAG_LATCHED;
+            options.flags |= TCP_FLAG_LATCHED;
 
 		boost::function<void(const ros::MessageEvent<topic_tools::ShapeShifter const>&)> func;
-		func = boost::bind(&TCPSender::messageCallback, this, topic, flags, _1);
+		func = boost::bind(&TCPSender::messageCallback, this, topic, options, _1);
 
-		ros::SubscribeOptions options;
-		options.initByFullCallbackType<const ros::MessageEvent<topic_tools::ShapeShifter const>&>(topic, 20, func);
+		ros::SubscribeOptions subOptions;
+		subOptions.initByFullCallbackType<const ros::MessageEvent<topic_tools::ShapeShifter const>&>(topic, 20, func);
 
 		if(entry.hasMember("type"))
 		{
@@ -99,11 +132,11 @@ TCPSender::TCPSender()
 				continue;
 			}
 
-			options.datatype = type;
-			options.md5sum = md5;
+			subOptions.datatype = type;
+			subOptions.md5sum = md5;
 		}
 
-		m_subs.push_back(m_nh.subscribe(options));
+		m_subs.push_back(m_nh.subscribe(subOptions));
 
 #if WITH_CONFIG_SERVER
 		bool enabled = true;
@@ -252,7 +285,7 @@ private:
 	uint8_t* m_ptr;
 };
 
-void TCPSender::messageCallback(const std::string& topic, int flags,
+void TCPSender::messageCallback(const std::string& topic, MessageOptions& options,
 		const ros::MessageEvent<topic_tools::ShapeShifter const>& event)
 {
 #if WITH_CONFIG_SERVER
@@ -265,11 +298,11 @@ void TCPSender::messageCallback(const std::string& topic, int flags,
 	if (std::find(m_ignoredPubs.begin(), m_ignoredPubs.end(), messagePublisher) != m_ignoredPubs.end())
 		return;
 
-	send(topic, flags, event.getMessage());
+	send(topic, options, event.getMessage());
 }
 
 
-void TCPSender::send(const std::string& topic, int flags, const topic_tools::ShapeShifter::ConstPtr& shifter, const bool reconnect)
+void TCPSender::send(const std::string& topic, MessageOptions& options, const topic_tools::ShapeShifter::ConstPtr& shifter, const bool reconnect)
 {
 #if WITH_CONFIG_SERVER
 	if (! (*m_enableTopic[topic])() )
@@ -282,11 +315,23 @@ void TCPSender::send(const std::string& topic, int flags, const topic_tools::Sha
 
 	uint32_t maxDataSize = size;
 
-	if(flags & TCP_FLAG_COMPRESSED)
-		maxDataSize = size + size / 100 + 1200; // taken from bzip2 docs
+	switch(options.compression)
+	{
+		case COMPRESSION_BZ2:
+			maxDataSize = size + size / 100 + 1200; // taken from bzip2 docs
+			break;
+#if WITH_ZSTD
+		case COMPRESSION_ZSTD:
+			maxDataSize = ZSTD_compressBound(size);
+			break;
+#endif
+		default:
+			maxDataSize = size;
+			break;
+	}
 
-	if (flags & TCP_FLAG_LATCHED)
-		this->m_latchedMessages[topic] = std::make_pair(shifter, flags);
+	if (options.flags & TCP_FLAG_LATCHED)
+		this->m_latchedMessages[topic] = std::make_pair(shifter, options);
 
 	m_packet.resize(
 		sizeof(TCPHeader) + topic.length() + type.length() + maxDataSize
@@ -303,7 +348,7 @@ void TCPSender::send(const std::string& topic, int flags, const topic_tools::Sha
 	memcpy(wptr, type.c_str(), type.length());
 	wptr += type.length();
 
-	if(flags & TCP_FLAG_COMPRESSED)
+	if(options.compression == COMPRESSION_BZ2)
 	{
 		unsigned int len = m_packet.size() - (wptr - m_packet.data());
 
@@ -311,16 +356,54 @@ void TCPSender::send(const std::string& topic, int flags, const topic_tools::Sha
 		PtrStream stream(m_compressionBuf.data());
 		shifter->write(stream);
 
-		if(BZ2_bzBuffToBuffCompress((char*)wptr, &len, (char*)m_compressionBuf.data(), m_compressionBuf.size(), 7, 0, 30) == BZ_OK)
+		if(options.compressionLevel < 0)
+            options.compressionLevel = 30;
+
+		if(BZ2_bzBuffToBuffCompress((char*)wptr, &len, (char*)m_compressionBuf.data(), m_compressionBuf.size(), 7, 0, options.compressionLevel) == BZ_OK)
 		{
 			header->data_len = len;
 			wptr += len;
 			size = len;
+            options.flags |= TCP_FLAG_COMPRESSED;
 		}
 		else
 		{
 			ROS_ERROR("Could not compress with bzip2 library, sending uncompressed");
-			flags &= ~TCP_FLAG_COMPRESSED;
+			memcpy(wptr, m_compressionBuf.data(), m_compressionBuf.size());
+			header->data_len = m_compressionBuf.size();
+			wptr += m_compressionBuf.size();
+		}
+	}
+	else if(options.compression == COMPRESSION_ZSTD)
+	{
+#if WITH_ZSTD
+		unsigned int len = m_packet.size() - (wptr - m_packet.data());
+
+		m_compressionBuf.resize(shifter->size());
+		PtrStream stream(m_compressionBuf.data());
+		shifter->write(stream);
+
+		if(options.compressionLevel < 0)
+            options.compressionLevel = 1; // default level
+
+		auto ret = ZSTD_compress(wptr, len, m_compressionBuf.data(), m_compressionBuf.size(), options.compressionLevel);
+		if(!ZSTD_isError(ret))
+		{
+			ROS_DEBUG("Compressed topic '%s' from %lu to %lu (%.2f%%)",
+				topic.c_str(),
+				m_compressionBuf.size(), ret,
+				100.0f * ((float)ret) / ((float)m_compressionBuf.size())
+			);
+
+			header->data_len = ret;
+			wptr += ret;
+			size = ret;
+            options.flags |= TCP_FLAG_ZSTD;
+		}
+		else
+#endif
+		{
+			ROS_ERROR("Could not compress with zstd library, sending uncompressed");
 			memcpy(wptr, m_compressionBuf.data(), m_compressionBuf.size());
 			header->data_len = m_compressionBuf.size();
 			wptr += m_compressionBuf.size();
@@ -337,7 +420,7 @@ void TCPSender::send(const std::string& topic, int flags, const topic_tools::Sha
 	header->topic_len = topic.length();
 	header->type_len = type.length();
 	header->data_len = size;
-	header->flags = flags;
+	header->flags = options.flags;
 	topic_info::packMD5(md5, header->topic_md5sum);
 
 	// Resize to final size
@@ -409,13 +492,9 @@ bool TCPSender::sendLatchedCallback(std_srvs::Empty::Request& request, std_srvs:
 }
 
 void TCPSender::sendLatched() {
-    std::map<std::string, std::pair<topic_tools::ShapeShifter::ConstPtr, int>>::iterator it =
-            this->m_latchedMessages.begin();
-
     // send all latched messages
-    while (it != this->m_latchedMessages.end()) {
-        this->send(it->first, it->second.second, it->second.first);
-        it++;
+    for (auto& it : this->m_latchedMessages) {
+        this->send(it.first, it.second.second, it.second.first);
     }
 }
 
