@@ -206,11 +206,17 @@ void UDPReceiver::handleFinishedMessage(Message* msg, HeaderType* header)
 			return;
 		}
 
+        std::string t = header->topic_name;
+        if (!m_removeTopicPrefix)
+            t = m_topicPrefix + header->topic_name;
+        else
+            t = t.substr(m_topicPrefix.length());
+
 		if(m_keepCompressed && compressed)
 		{
 			// If we are requested to keep the messages compressed, we advertise our compressed msg type
 			topic->publisher = m_nh.advertise<CompressedMsg>(
-				m_topicPrefix + header->topic_name,
+				t,
 				1,
 				boost::bind(&TopicReceiver::handleSubscriber, topic)
 			);
@@ -219,7 +225,7 @@ void UDPReceiver::handleFinishedMessage(Message* msg, HeaderType* header)
 		{
 			// ... otherwise, we advertise the native type
 			ros::AdvertiseOptions options(
-				m_topicPrefix + header->topic_name,
+				t,
 				1,
 				topic->md5_str,
 				header->topic_type,
