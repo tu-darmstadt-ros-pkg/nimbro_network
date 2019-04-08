@@ -38,6 +38,8 @@ ServiceServer::ServiceServer()
 	int port;
 	nh.param("port", port, 6050);
 
+	nh.param("topic_prefix", m_topicPrefix, std::string(""));
+
 	sockaddr_in addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -105,7 +107,7 @@ void ServiceServer::step()
 	int client = accept(m_fd, 0, 0);
 
 	m_handlers.push_back(
-		boost::make_shared<ClientHandler>(client)
+		boost::make_shared<ClientHandler>(client, m_topicPrefix)
 	);
 }
 

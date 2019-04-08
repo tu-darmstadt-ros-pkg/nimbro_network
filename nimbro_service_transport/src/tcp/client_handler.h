@@ -14,7 +14,7 @@ namespace nimbro_service_transport
 class ClientHandler
 {
 public:
-	ClientHandler(int fd);
+	ClientHandler(int fd, std::string topicPrefix);
 	~ClientHandler();
 private:
 	void run();
@@ -24,6 +24,7 @@ private:
 	void handleHeaderWritten();
 
 	int m_fd;
+	std::string m_topicPrefix;
 	bool m_gotHeader;
 	ros::Header m_headerBuf;
 	boost::thread m_thread;

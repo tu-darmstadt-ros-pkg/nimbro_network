@@ -21,6 +21,7 @@ public:
 	void step();
 private:
 	int m_fd;
+	std::string m_topicPrefix;
 	std::vector<boost::shared_ptr<ClientHandler> > m_handlers;
 };
 

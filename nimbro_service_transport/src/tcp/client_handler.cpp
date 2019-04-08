@@ -45,8 +45,8 @@ static void sureWrite(int fd, const void* src, size_t size)
 	}
 }
 
-ClientHandler::ClientHandler(int fd)
- : m_fd(fd)
+ClientHandler::ClientHandler(int fd, std::string topicPrefix)
+ : m_fd(fd), m_topicPrefix(topicPrefix)
  , m_thread(boost::bind(&ClientHandler::run, this))
 {
 }
@@ -76,6 +76,10 @@ void ClientHandler::run()
 		{
 			std::string service(request.name_length(), ' ');
 			sureRead(m_fd, (uint8_t*)service.data(), request.name_length());
+
+			if (!m_topicPrefix.empty()) {
+			    service = service.substr(m_topicPrefix.length());
+			}
 
 			ros::ServiceClientOptions ops(service, "*", false, ros::M_string());
 			ros::ServiceClient client = ros::NodeHandle().serviceClient(ops);
