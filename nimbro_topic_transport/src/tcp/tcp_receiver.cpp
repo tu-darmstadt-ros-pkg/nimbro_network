@@ -111,6 +111,7 @@ TCPReceiver::TCPReceiver()
 	);
 
 	m_nh.param("topic_prefix", m_topicPrefix, std::string());
+	m_nh.param("remove_topic_prefix", m_removeTopicPrefix, false);
 
     m_pub_ready = m_nh.advertise<std_msgs::String>("/network/receiver_ready", 1, true);
 }
@@ -205,19 +206,20 @@ void TCPReceiver::run()
 			}
 		}
 
-		ClientHandler* handler = new ClientHandler(client_fd, m_topicPrefix);
+		ClientHandler* handler = new ClientHandler(client_fd, m_topicPrefix, m_removeTopicPrefix);
 		handler->setKeepCompressed(m_keepCompressed);
 
 		m_handlers.push_back(handler);
 	}
 }
 
-TCPReceiver::ClientHandler::ClientHandler(int fd, const std::string& topicPrefix)
+TCPReceiver::ClientHandler::ClientHandler(int fd, const std::string& topicPrefix, bool removeTopicPrefix)
  : m_fd(fd)
  , m_uncompressBuf(1024)
  , m_running(true)
  , m_keepCompressed(false)
  , m_topicPrefix(topicPrefix)
+ , m_removeTopicPrefix(removeTopicPrefix)
 {
 	m_thread = boost::thread(boost::bind(&ClientHandler::start, this));
 }
@@ -295,7 +297,12 @@ void TCPReceiver::ClientHandler::run()
 			if(it == m_pub.end())
 			{
 				ros::NodeHandle nh;
-				ros::Publisher pub = nh.advertise<CompressedMsg>(m_topicPrefix + topic, 2);
+				auto t = topic;
+				if (!m_removeTopicPrefix)
+				    t = m_topicPrefix + topic;
+                else
+                    t = std::string(&topic.c_str()[m_topicPrefix.length()]);
+				ros::Publisher pub = nh.advertise<CompressedMsg>(t, 2);
 				m_pub[topic] = pub;
 
 				pub.publish(compressed);
@@ -381,13 +388,19 @@ void TCPReceiver::ClientHandler::run()
 			std::map<std::string, ros::Publisher>::iterator it = m_pub.find(topic);
 			if(it == m_pub.end())
 			{
-				ROS_DEBUG("Advertising new topic '%s'", (m_topicPrefix + topic).c_str());
+                auto t = topic;
+                if (!m_removeTopicPrefix)
+                    t = m_topicPrefix + topic;
+                else
+                    t = std::string(&topic.c_str()[m_topicPrefix.length()]);
+
+				ROS_DEBUG("Advertising new topic '%s'", (t.c_str()));
 				std::string msgDef = topic_info::getMsgDef(type);
 
 				ros::NodeHandle nh;
 
 				ros::AdvertiseOptions options(
-					m_topicPrefix + topic,
+					t,
 					2,
 					md5,
 					type,
