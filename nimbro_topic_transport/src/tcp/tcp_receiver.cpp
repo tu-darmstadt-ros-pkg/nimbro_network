@@ -301,7 +301,7 @@ void TCPReceiver::ClientHandler::run()
 				if (!m_removeTopicPrefix)
 				    t = m_topicPrefix + topic;
                 else
-                    t = std::string(&topic.c_str()[m_topicPrefix.length()]);
+                    t = topic.substr(m_topicPrefix.length());
 				ros::Publisher pub = nh.advertise<CompressedMsg>(t, 2);
 				m_pub[topic] = pub;
 
@@ -392,7 +392,7 @@ void TCPReceiver::ClientHandler::run()
                 if (!m_removeTopicPrefix)
                     t = m_topicPrefix + topic;
                 else
-                    t = std::string(&topic.c_str()[m_topicPrefix.length()]);
+                    t = topic.substr(m_topicPrefix.length());
 
 				ROS_DEBUG("Advertising new topic '%s'", (t.c_str()));
 				std::string msgDef = topic_info::getMsgDef(type);
