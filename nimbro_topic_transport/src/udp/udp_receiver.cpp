@@ -106,6 +106,8 @@ UDPReceiver::UDPReceiver()
 	);
 
 	nh.param("topic_prefix", m_topicPrefix, std::string());
+  nh.param("remove_topic_prefix", m_removeTopicPrefix, false);
+
 }
 
 UDPReceiver::~UDPReceiver()
