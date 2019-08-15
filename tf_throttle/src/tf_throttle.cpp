@@ -19,6 +19,7 @@
 std::unique_ptr<tf2_ros::Buffer> g_tf;
 ros::Publisher pub;
 std::set<std::string> frameIds;
+bool sendStatic;
 
 void sendTransforms()
 {
@@ -52,6 +53,9 @@ void sendTransforms()
         {
             continue;
         }
+
+        if (!sendStatic && transform.header.stamp.sec == 0)
+          continue;
 
         msg.transforms.push_back(transform);
     }
@@ -88,6 +92,8 @@ int main(int argc, char** argv)
     } else {
         ROS_INFO("Republishing all TF messages.");
     }
+
+    sendStatic = nh.param("send_static_tfs", true);
 
     ros::Timer timer = nh.createTimer(
             ros::Duration(1.0 / rate),
