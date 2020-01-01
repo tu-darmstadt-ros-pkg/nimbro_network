@@ -32,10 +32,10 @@
     <exec_depend>rqt_gui</exec_depend>
 
     <!-- This is not a hard dependency, the package compiles without plot_msgs. -->
-    <depend>plot_msgs</depend>
+    <!--<depend>plot_msgs</depend>-->
 
     <!-- This is not a hard dependency, the package compiles without config_server. -->
-    <depend>config_server</depend>
+    <!--<depend>config_server</depend>-->
 
     <test_depend>catch_ros</test_depend>
     <test_depend>rostest</test_depend>
